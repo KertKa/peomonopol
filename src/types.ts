@@ -8,6 +8,9 @@ export interface Player {
   coins: number;
   shield: boolean;
   laps: number;
+  skipNextTurn?: boolean;
+  drinkingBuddyId?: number | null;
+  drinkingBuddyExpiresLap?: number | null;
 }
 
 export interface Tile {

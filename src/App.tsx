@@ -10,6 +10,11 @@ import {
   Trash2,
   Sparkles,
   RotateCcw,
+  ArrowLeft,
+  SkipForward,
+  Building2,
+  Users,
+  Ban,
 } from 'lucide-react';
 import { Board3D, type CameraMode } from './components/Board3D';
 import {
@@ -70,7 +75,9 @@ export function App() {
   // Overlays
   const [toast, setToast] = useState<string | null>(null);
   const [modal, setModal] = useState<ActiveModal>(null);
-  const [shopAction, setShopAction] = useState<'drink' | 'swap' | null>(null);
+  const [shopAction, setShopAction] = useState<
+    'drink' | 'skip' | 'buddy' | 'expropriate' | null
+  >(null);
 
   const toastTimeoutRef = useRef<number | null>(null);
 
@@ -98,6 +105,9 @@ export function App() {
       coins: 5,
       shield: false,
       laps: 1,
+      skipNextTurn: false,
+      drinkingBuddyId: null,
+      drinkingBuddyExpiresLap: null,
     }));
     setPlayers(validPlayers);
     setTiles(INITIAL_TILES.map((t) => ({ ...t, owner: null })));
@@ -215,9 +225,34 @@ export function App() {
     }
   };
 
+  // Helper: Trigger drinking buddy reaction whenever a player drinks
+  const applyDrinkingBuddyReaction = (
+    drinker: Player,
+    currentPlayers: Player[]
+  ): Player[] => {
+    if (
+      drinker.drinkingBuddyId &&
+      (drinker.drinkingBuddyExpiresLap == null ||
+        (drinker.laps || 1) <= drinker.drinkingBuddyExpiresLap)
+    ) {
+      const buddy = currentPlayers.find((p) => p.id === drinker.drinkingBuddyId);
+      if (buddy) {
+        showToast(
+          `🍻 Joomakaaslane ${buddy.name} peab koos mängijaga ${drinker.name} võtma ${drinkWordPart} (+1 💰)!`,
+          3500
+        );
+        return currentPlayers.map((p) =>
+          p.id === buddy.id ? { ...p, coins: p.coins + 1 } : p
+        );
+      }
+    }
+    return currentPlayers;
+  };
+
   // Roll Dice & Move Cone Step-by-Step with Camera Follow & Landing Zoom
   const handleRollDice = () => {
     if (isRolling || isMoving || drawingDeck !== null || modal !== null) return;
+    if (players[currentIdx]?.skipNextTurn) return;
 
     // 1. Keep camera in overview while dice rolls
     setCameraMode('overview');
@@ -240,6 +275,7 @@ export function App() {
       if (rolled === 1 || rolled === 6) {
         activePlayer.coins += 1;
         workingPlayers[currentIdx] = activePlayer;
+        workingPlayers = applyDrinkingBuddyReaction(activePlayer, workingPlayers);
         setPlayers([...workingPlayers]);
         const hostSix = getRandomHostLine('six');
         showToast(
@@ -260,6 +296,23 @@ export function App() {
           if (nextPos === 0) {
             activePlayer.coins += 10;
             activePlayer.laps = (activePlayer.laps || 1) + 1;
+
+            // Check if 1-round drinking buddy has expired
+            if (
+              activePlayer.drinkingBuddyId &&
+              activePlayer.drinkingBuddyExpiresLap &&
+              activePlayer.laps > activePlayer.drinkingBuddyExpiresLap
+            ) {
+              const buddy = workingPlayers.find(
+                (p) => p.id === activePlayer.drinkingBuddyId
+              );
+              showToast(
+                `${activePlayer.name} ja ${buddy?.name || 'kaaslase'} joomakaasluse leping lõppes (1 ring täis)! 🏁`
+              );
+              activePlayer.drinkingBuddyId = null;
+              activePlayer.drinkingBuddyExpiresLap = null;
+            }
+
             showToast(
               `${activePlayer.name} läbis START ruudu (+10 💰)! Ring ${activePlayer.laps}/${maxRounds}`
             );
@@ -313,7 +366,7 @@ export function App() {
 
   // Owned property penalty handler
   const handlePayRent = (owner: Player, useShield: boolean) => {
-    const nextPlayers = players.map((p, idx) => {
+    let nextPlayers = players.map((p, idx) => {
       if (idx === currentIdx) {
         return useShield
           ? { ...p, shield: false }
@@ -324,6 +377,11 @@ export function App() {
       }
       return p;
     });
+
+    if (!useShield) {
+      nextPlayers = applyDrinkingBuddyReaction(players[currentIdx], nextPlayers);
+    }
+
     setPlayers(nextPlayers);
     if (useShield) {
       showToast(`${players[currentIdx].name} kasutas kilpi 🛡️! ${owner.name} sai +2 💰.`);
@@ -336,16 +394,19 @@ export function App() {
 
   // Card action handlers
   const handleCompleteCard = () => {
-    const nextPlayers = players.map((p, idx) =>
+    let nextPlayers = players.map((p, idx) =>
       idx === currentIdx ? { ...p, coins: p.coins + 1 } : p
     );
+    if (modal?.type === 'card' && modal.tileType === 'drink') {
+      nextPlayers = applyDrinkingBuddyReaction(players[currentIdx], nextPlayers);
+    }
     setPlayers(nextPlayers);
     showToast(`${players[currentIdx].name} tegi ülesande ära (+1 💰)!`);
     endTurn();
   };
 
   const handleSkipCard = (useShield: boolean) => {
-    const nextPlayers = players.map((p, idx) => {
+    let nextPlayers = players.map((p, idx) => {
       if (idx !== currentIdx) return p;
       if (useShield) {
         return { ...p, shield: false };
@@ -353,6 +414,11 @@ export function App() {
       const afterPenalty = Math.max(0, p.coins - 2);
       return { ...p, coins: afterPenalty + 1 };
     });
+
+    if (!useShield) {
+      nextPlayers = applyDrinkingBuddyReaction(players[currentIdx], nextPlayers);
+    }
+
     setPlayers(nextPlayers);
     if (useShield) {
       showToast(`${players[currentIdx].name} blokeeris kaardi kilbiga 🛡️!`);
@@ -389,31 +455,53 @@ export function App() {
     const target = players.find((p) => p.id === targetId);
     if (!target || active.coins < 2) return;
 
-    const nextPlayers = players.map((p) => {
+    let nextPlayers = players.map((p) => {
       if (p.id === active.id) return { ...p, coins: p.coins - 2 };
       if (p.id === targetId) return { ...p, coins: p.coins + 1 };
       return p;
     });
+
+    // Target drinks, so if target has a drinking buddy, their buddy also drinks
+    nextPlayers = applyDrinkingBuddyReaction(target, nextPlayers);
+
     setPlayers(nextPlayers);
     setShopAction(null);
     setModal(null);
     showToast(`${active.name} saatis mängijale ${target.name} 2 ${drinkWordPart}! (+1 💰)`);
   };
 
-  const handleSwapWithPlayer = (targetId: number) => {
+  const handleSkipPlayerTurn = (targetId: number) => {
     const active = players[currentIdx];
     const target = players.find((p) => p.id === targetId);
-    if (!target || active.coins < 4) return;
+    if (!target || active.coins < 3) return;
 
-    const newActivePos = target.pos;
-    const newTargetPos = active.pos;
+    const nextPlayers = players.map((p) => {
+      if (p.id === active.id) return { ...p, coins: p.coins - 3 };
+      if (p.id === targetId) return { ...p, skipNextTurn: true };
+      return p;
+    });
+
+    setPlayers(nextPlayers);
+    setShopAction(null);
+    setModal(null);
+    showToast(
+      `${active.name} pani mängija ${target.name} järgmise käigu vahele jätma! 🛑`
+    );
+  };
+
+  const handleSetDrinkingBuddy = (targetId: number) => {
+    const active = players[currentIdx];
+    const target = players.find((p) => p.id === targetId);
+    if (!target || active.coins < 3) return;
 
     const nextPlayers = players.map((p) => {
       if (p.id === active.id) {
-        return { ...p, coins: p.coins - 4, pos: newActivePos };
-      }
-      if (p.id === targetId) {
-        return { ...p, pos: newTargetPos };
+        return {
+          ...p,
+          coins: p.coins - 3,
+          drinkingBuddyId: targetId,
+          drinkingBuddyExpiresLap: (p.laps || 1) + 1,
+        };
       }
       return p;
     });
@@ -421,14 +509,74 @@ export function App() {
     setPlayers(nextPlayers);
     setShopAction(null);
     setModal(null);
-    setCameraMode('focus');
-    setFocusedTileId(newActivePos);
-    const hostSteal = getRandomHostLine('steal');
-    showToast(`${active.name} vahetas kohad mängijaga ${target.name}! ${hostSteal}`);
+    showToast(
+      `${active.name} valis joomakaaslaseks ${target.name}! Terve 1 ringi joote koos! 🍻`
+    );
+  };
 
-    window.setTimeout(() => {
-      resolveTileLanding(newActivePos, nextPlayers, tiles, currentIdx);
-    }, 850);
+  const handleExpropriateProperty = (tileId: number) => {
+    const active = players[currentIdx];
+    const tile = tiles.find((t) => t.id === tileId);
+    if (!tile || !tile.owner || tile.owner === active.id) return;
+    const cost = (tile.price || 2) * 3;
+    if (active.coins < cost) return;
+
+    const prevOwner = players.find((p) => p.id === tile.owner);
+
+    const nextPlayers = players.map((p) => {
+      if (p.id === active.id) return { ...p, coins: p.coins - cost };
+      if (p.id === tile.owner) return { ...p, coins: p.coins + cost };
+      return p;
+    });
+
+    const nextTiles = tiles.map((t) =>
+      t.id === tileId ? { ...t, owner: active.id } : t
+    );
+
+    setPlayers(nextPlayers);
+    setTiles(nextTiles);
+    setShopAction(null);
+    setModal(null);
+    showToast(
+      `${active.name} võõrandas koha "${tile.name}" mängijalt ${prevOwner?.name || 'omanik'} (${cost} 💰)! 🏛️`
+    );
+  };
+
+  const handleAcknowledgeTurnSkip = () => {
+    const active = players[currentIdx];
+    const updatedPlayers = players.map((p, idx) =>
+      idx === currentIdx ? { ...p, skipNextTurn: false } : p
+    );
+    setPlayers(updatedPlayers);
+    showToast(`${active.name} käik jäi vahele! 🛑`);
+
+    setModal(null);
+    setDrawingDeck(null);
+    setShopAction(null);
+    setCameraMode('overview');
+    setFocusedTileId(null);
+
+    if (currentIdx + 1 < updatedPlayers.length) {
+      setCurrentIdx(currentIdx + 1);
+    } else {
+      const anyPlayerFinished = updatedPlayers.some((p) => (p.laps || 1) > maxRounds);
+      if (anyPlayerFinished) {
+        setModal({ type: 'game_over' });
+        const hostEnd = getRandomHostLine('end');
+        if (hostEnd) showToast(hostEnd, 4500);
+      } else {
+        const highestLap = Math.max(...updatedPlayers.map((p) => p.laps || 1));
+        if (highestLap > round) {
+          setRound(highestLap);
+          const stageName = getStageName(getStageForRound(highestLap, maxRounds));
+          const prevStage = getStageForRound(round, maxRounds);
+          const nextStage = getStageForRound(highestLap, maxRounds);
+          const stageComment = prevStage !== nextStage ? ` ${getRandomHostLine('stage')}` : '';
+          showToast(`Uus ring alanud: ${highestLap}/${maxRounds} (${stageName})!${stageComment}`);
+        }
+        setCurrentIdx(0);
+      }
+    }
   };
 
   const activePlayer = players[currentIdx];
@@ -442,6 +590,14 @@ export function App() {
 
   const getOwnedCount = (playerId: number) =>
     tiles.filter((t) => t.owner === playerId).length;
+
+  const opponentProperties = tiles.filter(
+    (t) => t.type === 'property' && t.owner !== null && t.owner !== activePlayer?.id
+  );
+  const minExpropriateCost =
+    opponentProperties.length > 0
+      ? Math.min(...opponentProperties.map((t) => (t.price || 2) * 3))
+      : 0;
 
   return (
     <div className="relative w-screen h-screen overflow-hidden select-none">
@@ -647,6 +803,11 @@ export function App() {
                       </span>
                     )}
                     {p.shield && <span title="Kilp aktiivne">🛡️</span>}
+                    {p.skipNextTurn && <span title="Käik jääb vahele">🛑</span>}
+                    {p.drinkingBuddyId && <span title="Joomakaaslane määratud">🍻</span>}
+                    {players.some((o) => o.drinkingBuddyId === p.id) && (
+                      <span title="On kellegi joomakaaslane">👥</span>
+                    )}
                   </div>
                 );
               })}
@@ -674,21 +835,33 @@ export function App() {
               </span>
             </div>
 
-            <button
-              type="button"
-              disabled={isRolling || isMoving || drawingDeck !== null || modal !== null}
-              onClick={handleRollDice}
-              className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-amber-400 hover:bg-amber-300 disabled:opacity-50 text-slate-950 font-extrabold text-base shadow-lg shadow-amber-400/20 transition cursor-pointer"
-            >
-              <Dices className="w-5 h-5" />
-              {isRolling
-                ? 'Veereb...'
-                : isMoving
-                ? 'Liigub...'
-                : drawingDeck
-                ? 'Võtab kaarti...'
-                : 'Veereta täringut'}
-            </button>
+            {activePlayer.skipNextTurn ? (
+              <button
+                type="button"
+                disabled={isRolling || isMoving || drawingDeck !== null || modal !== null}
+                onClick={handleAcknowledgeTurnSkip}
+                className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white font-extrabold text-base shadow-lg shadow-rose-600/30 transition cursor-pointer animate-pulse"
+              >
+                <SkipForward className="w-5 h-5" />
+                Käik jääb vahele (Anna kord üle)
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled={isRolling || isMoving || drawingDeck !== null || modal !== null}
+                onClick={handleRollDice}
+                className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-amber-400 hover:bg-amber-300 disabled:opacity-50 text-slate-950 font-extrabold text-base shadow-lg shadow-amber-400/20 transition cursor-pointer"
+              >
+                <Dices className="w-5 h-5" />
+                {isRolling
+                  ? 'Veereb...'
+                  : isMoving
+                  ? 'Liigub...'
+                  : drawingDeck
+                  ? 'Võtab kaarti...'
+                  : 'Veereta täringut'}
+              </button>
+            )}
 
             <button
               type="button"
@@ -910,7 +1083,7 @@ export function App() {
                 animate={{ scale: 1, opacity: 1 }}
                 className="w-full max-w-md rounded-3xl bg-slate-900 border border-slate-800 p-6 shadow-2xl"
               >
-                <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center justify-between mb-4">
                   <h2 className="text-xl font-black text-white">🛒 Pood</h2>
                   <span className="text-sm font-bold text-amber-400 flex items-center gap-1">
                     <Coins className="w-4 h-4" /> {activePlayer.coins} 💰
@@ -918,12 +1091,13 @@ export function App() {
                 </div>
 
                 {!shopAction ? (
-                  <div className="space-y-2.5 mb-5">
+                  <div className="space-y-2 mb-5">
+                    {/* 1. Kilp */}
                     <button
                       type="button"
                       disabled={activePlayer.coins < 3 || activePlayer.shield}
                       onClick={handleBuyShield}
-                      className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-left transition cursor-pointer"
+                      className="w-full flex items-center justify-between p-3 rounded-2xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-left transition cursor-pointer"
                     >
                       <div>
                         <div className="font-bold text-white text-sm">
@@ -938,11 +1112,12 @@ export function App() {
                       </span>
                     </button>
 
+                    {/* 2. Saada jook */}
                     <button
                       type="button"
                       disabled={activePlayer.coins < 2}
                       onClick={() => setShopAction('drink')}
-                      className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-left transition cursor-pointer"
+                      className="w-full flex items-center justify-between p-3 rounded-2xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-left transition cursor-pointer"
                     >
                       <div>
                         <div className="font-bold text-white text-sm">
@@ -957,53 +1132,257 @@ export function App() {
                       </span>
                     </button>
 
+                    {/* 3. Jäta käik vahele */}
                     <button
                       type="button"
-                      disabled={activePlayer.coins < 4}
-                      onClick={() => setShopAction('swap')}
-                      className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-left transition cursor-pointer"
+                      disabled={activePlayer.coins < 3}
+                      onClick={() => setShopAction('skip')}
+                      className="w-full flex items-center justify-between p-3 rounded-2xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-left transition cursor-pointer"
                     >
                       <div>
                         <div className="font-bold text-white text-sm">
-                          🔄 Vahetus
+                          🛑 Jäta käik vahele
                         </div>
                         <div className="text-xs text-slate-400">
-                          Vaheta asukoht teise mängijaga laual
+                          Vali vastane, kelle järgmine käik jääb vahele
                         </div>
                       </div>
                       <span className="font-bold text-amber-400 text-sm shrink-0">
-                        4 💰
+                        3 💰
+                      </span>
+                    </button>
+
+                    {/* 4. Joomakaaslane */}
+                    <button
+                      type="button"
+                      disabled={activePlayer.coins < 3}
+                      onClick={() => setShopAction('buddy')}
+                      className="w-full flex items-center justify-between p-3 rounded-2xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-left transition cursor-pointer"
+                    >
+                      <div>
+                        <div className="font-bold text-white text-sm">
+                          🍻 Joomakaaslane (1 ring)
+                        </div>
+                        <div className="text-xs text-slate-400">
+                          Vali kaaslane, kes joob sinuga koos iga kord
+                        </div>
+                      </div>
+                      <span className="font-bold text-amber-400 text-sm shrink-0">
+                        3 💰
+                      </span>
+                    </button>
+
+                    {/* 5. Maa võõrandamine */}
+                    <button
+                      type="button"
+                      disabled={
+                        opponentProperties.length === 0 ||
+                        activePlayer.coins < minExpropriateCost
+                      }
+                      onClick={() => setShopAction('expropriate')}
+                      className="w-full flex items-center justify-between p-3 rounded-2xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-left transition cursor-pointer"
+                    >
+                      <div>
+                        <div className="font-bold text-white text-sm">
+                          🏛️ Maa võõrandamine
+                        </div>
+                        <div className="text-xs text-slate-400">
+                          {opponentProperties.length === 0
+                            ? 'Vastastel pole veel kinnisvara'
+                            : 'Osta vastase maa välja (alghind × 3)'}
+                        </div>
+                      </div>
+                      <span className="font-bold text-amber-400 text-xs shrink-0 text-right">
+                        Alghind × 3
                       </span>
                     </button>
                   </div>
                 ) : (
-                  <div className="space-y-2 mb-5">
-                    <p className="text-sm text-slate-300 mb-2">
-                      Vali mängija:
-                    </p>
-                    {players
-                      .filter((p) => p.id !== activePlayer.id)
-                      .map((target) => (
-                        <button
-                          key={target.id}
-                          type="button"
-                          onClick={() =>
-                            shopAction === 'drink'
-                              ? handleSendDrinkToPlayer(target.id)
-                              : handleSwapWithPlayer(target.id)
-                          }
-                          className="w-full flex items-center justify-between p-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white font-semibold text-sm cursor-pointer"
-                        >
-                          <span className="flex items-center gap-2">
-                            <span
-                              className="w-3 h-3 rounded-full"
-                              style={{ backgroundColor: target.color }}
-                            />
-                            {target.name}
-                          </span>
-                          <Sparkles className="w-4 h-4 text-amber-400" />
-                        </button>
-                      ))}
+                  <div className="mb-5">
+                    <button
+                      type="button"
+                      onClick={() => setShopAction(null)}
+                      className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white mb-3 cursor-pointer"
+                    >
+                      <ArrowLeft className="w-3.5 h-3.5" /> Tagasi valikusse
+                    </button>
+
+                    {/* Subview: Send Drink */}
+                    {shopAction === 'drink' && (
+                      <div className="space-y-2">
+                        <p className="text-sm font-semibold text-slate-200 mb-2">
+                          Vali mängija, kellele saata 2 {drinkWordPart} (2 💰):
+                        </p>
+                        <div className="space-y-2 max-h-[42vh] overflow-y-auto pr-1">
+                          {players
+                            .filter((p) => p.id !== activePlayer.id)
+                            .map((target) => (
+                              <button
+                                key={target.id}
+                                type="button"
+                                onClick={() => handleSendDrinkToPlayer(target.id)}
+                                className="w-full flex items-center justify-between p-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white font-semibold text-sm cursor-pointer transition"
+                              >
+                                <span className="flex items-center gap-2">
+                                  <span
+                                    className="w-3 h-3 rounded-full"
+                                    style={{ backgroundColor: target.color }}
+                                  />
+                                  {target.name}
+                                </span>
+                                <span className="text-xs text-amber-400 font-bold">
+                                  2 💰
+                                </span>
+                              </button>
+                            ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Subview: Skip Turn */}
+                    {shopAction === 'skip' && (
+                      <div className="space-y-2">
+                        <p className="text-sm font-semibold text-slate-200 mb-2">
+                          Vali vastane, kelle käik vahele jätta (3 💰):
+                        </p>
+                        <div className="space-y-2 max-h-[42vh] overflow-y-auto pr-1">
+                          {players
+                            .filter((p) => p.id !== activePlayer.id)
+                            .map((target) => (
+                              <button
+                                key={target.id}
+                                type="button"
+                                disabled={!!target.skipNextTurn}
+                                onClick={() => handleSkipPlayerTurn(target.id)}
+                                className="w-full flex items-center justify-between p-3 rounded-2xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-white font-semibold text-sm cursor-pointer transition"
+                              >
+                                <span className="flex items-center gap-2">
+                                  <span
+                                    className="w-3 h-3 rounded-full"
+                                    style={{ backgroundColor: target.color }}
+                                  />
+                                  {target.name}
+                                  {target.skipNextTurn && (
+                                    <span className="text-xs text-rose-400 font-normal">
+                                      (Juba vahele jäetud)
+                                    </span>
+                                  )}
+                                </span>
+                                <span className="text-xs text-rose-400 font-bold flex items-center gap-1">
+                                  <Ban className="w-3.5 h-3.5" /> 3 💰
+                                </span>
+                              </button>
+                            ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Subview: Drinking Buddy */}
+                    {shopAction === 'buddy' && (
+                      <div className="space-y-2">
+                        <p className="text-sm font-semibold text-slate-200 mb-2">
+                          Vali joomakaaslane (3 💰, kestab 1 ringi):
+                        </p>
+                        <div className="space-y-2 max-h-[42vh] overflow-y-auto pr-1">
+                          {players
+                            .filter((p) => p.id !== activePlayer.id)
+                            .map((target) => {
+                              const isCurrentBuddy =
+                                activePlayer.drinkingBuddyId === target.id;
+                              return (
+                                <button
+                                  key={target.id}
+                                  type="button"
+                                  disabled={isCurrentBuddy}
+                                  onClick={() =>
+                                    handleSetDrinkingBuddy(target.id)
+                                  }
+                                  className="w-full flex items-center justify-between p-3 rounded-2xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-white font-semibold text-sm cursor-pointer transition"
+                                >
+                                  <span className="flex items-center gap-2">
+                                    <span
+                                      className="w-3 h-3 rounded-full"
+                                      style={{ backgroundColor: target.color }}
+                                    />
+                                    {target.name}
+                                    {isCurrentBuddy && (
+                                      <span className="text-xs text-amber-400 font-normal">
+                                        (Praegune kaaslane)
+                                      </span>
+                                    )}
+                                  </span>
+                                  <span className="text-xs text-amber-400 font-bold flex items-center gap-1">
+                                    <Users className="w-3.5 h-3.5" /> 3 💰
+                                  </span>
+                                </button>
+                              );
+                            })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Subview: Expropriate Property */}
+                    {shopAction === 'expropriate' && (
+                      <div className="space-y-2">
+                        <p className="text-sm font-semibold text-slate-200 mb-2">
+                          Vali võõrandatav kinnisvara (Alghind × 3):
+                        </p>
+                        <div className="space-y-2 max-h-[42vh] overflow-y-auto pr-1">
+                          {opponentProperties.length === 0 ? (
+                            <p className="text-center text-slate-400 text-sm py-4">
+                              Ühelgi vastasel pole veel kinnisvara.
+                            </p>
+                          ) : (
+                            opponentProperties.map((prop) => {
+                              const cost = (prop.price || 2) * 3;
+                              const owner = players.find(
+                                (p) => p.id === prop.owner
+                              );
+                              const canAfford = activePlayer.coins >= cost;
+                              return (
+                                <button
+                                  key={prop.id}
+                                  type="button"
+                                  disabled={!canAfford}
+                                  onClick={() =>
+                                    handleExpropriateProperty(prop.id)
+                                  }
+                                  className="w-full flex items-center justify-between p-3 rounded-2xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-left transition cursor-pointer"
+                                >
+                                  <div className="flex items-center gap-2.5">
+                                    <span
+                                      className="w-3.5 h-3.5 rounded-full shrink-0"
+                                      style={{ backgroundColor: prop.color }}
+                                    />
+                                    <div>
+                                      <div className="font-bold text-white text-sm">
+                                        {prop.name}
+                                      </div>
+                                      <div className="text-xs text-slate-400 flex items-center gap-1.5">
+                                        <span>Omanik:</span>
+                                        <span
+                                          className="w-2 h-2 rounded-full inline-block"
+                                          style={{
+                                            backgroundColor: owner?.color,
+                                          }}
+                                        />
+                                        <span className="text-slate-300 font-medium">
+                                          {owner?.name || 'Vastane'}
+                                        </span>
+                                        <span>(alghind {prop.price || 2} 💰)</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <span className="font-extrabold text-amber-400 text-sm shrink-0">
+                                    {cost} 💰
+                                  </span>
+                                </button>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
