@@ -97,6 +97,7 @@ export function App() {
       pos: 0,
       coins: 5,
       shield: false,
+      laps: 1,
     }));
     setPlayers(validPlayers);
     setTiles(INITIAL_TILES.map((t) => ({ ...t, owner: null })));
@@ -122,7 +123,7 @@ export function App() {
     setGameStarted(false);
   };
 
-  // Advance to next player's turn or finish after selected maxRounds
+  // Advance to next player's turn or finish after selected maxRounds laps
   const endTurn = () => {
     setModal(null);
     setDrawingDeck(null);
@@ -133,19 +134,24 @@ export function App() {
     if (currentIdx + 1 < players.length) {
       setCurrentIdx(currentIdx + 1);
     } else {
-      if (round >= maxRounds) {
+      // Completed one turn rotation for all players
+      // Check if any player has completed all maxRounds laps
+      const anyPlayerFinished = players.some((p) => (p.laps || 1) > maxRounds);
+      if (anyPlayerFinished) {
         setModal({ type: 'game_over' });
         const hostEnd = getRandomHostLine('end');
         if (hostEnd) showToast(hostEnd, 4500);
       } else {
-        const nextRound = round + 1;
-        setRound(nextRound);
+        const highestLap = Math.max(...players.map((p) => p.laps || 1));
+        if (highestLap > round) {
+          setRound(highestLap);
+          const stageName = getStageName(getStageForRound(highestLap, maxRounds));
+          const prevStage = getStageForRound(round, maxRounds);
+          const nextStage = getStageForRound(highestLap, maxRounds);
+          const stageComment = prevStage !== nextStage ? ` ${getRandomHostLine('stage')}` : '';
+          showToast(`Uus ring alanud: ${highestLap}/${maxRounds} (${stageName})!${stageComment}`);
+        }
         setCurrentIdx(0);
-        const stageName = getStageName(getStageForRound(nextRound, maxRounds));
-        const prevStage = getStageForRound(round, maxRounds);
-        const nextStage = getStageForRound(nextRound, maxRounds);
-        const stageComment = prevStage !== nextStage ? ` ${getRandomHostLine('stage')}` : '';
-        showToast(`Algab ${nextRound}. ring (${stageName})!${stageComment}`);
       }
     }
   };
@@ -161,7 +167,7 @@ export function App() {
     const activePlayer = updatedPlayers[activeIdx];
 
     if (tile.type === 'start') {
-      showToast(`${activePlayer.name} maandus START ruudul (+2 💰)!`);
+      showToast(`${activePlayer.name} maandus START ruudul (+10 💰)!`);
       window.setTimeout(() => endTurn(), 1200);
       return;
     }
@@ -250,10 +256,13 @@ export function App() {
           const nextPos = (activePlayer.pos + 1) % TOTAL_TILES;
           activePlayer.pos = nextPos;
 
-          // Passing or landing on START grants +2 coins
+          // Passing or landing on START grants +10 coins and completes a full circuit
           if (nextPos === 0) {
-            activePlayer.coins += 2;
-            showToast(`${activePlayer.name} läbis START ruudu (+2 💰)!`);
+            activePlayer.coins += 10;
+            activePlayer.laps = (activePlayer.laps || 1) + 1;
+            showToast(
+              `${activePlayer.name} läbis START ruudu (+10 💰)! Ring ${activePlayer.laps}/${maxRounds}`
+            );
           }
 
           workingPlayers = workingPlayers.map((p, idx) =>
@@ -601,7 +610,7 @@ export function App() {
               </span>
               <span className="text-slate-600">|</span>
               <span className="text-sm font-semibold text-slate-200">
-                Ring {round}/{maxRounds} ({getStageName(getStageForRound(round, maxRounds))})
+                Ring {activePlayer.laps || 1}/{maxRounds} ({getStageName(getStageForRound(activePlayer.laps || 1, maxRounds))})
               </span>
             </div>
 
@@ -628,6 +637,9 @@ export function App() {
                     </span>
                     <span className="text-xs font-semibold text-amber-400">
                       {p.coins} 💰
+                    </span>
+                    <span className="text-xs font-semibold text-slate-300">
+                      🏁 {p.laps || 1}/{maxRounds}
                     </span>
                     {owned > 0 && (
                       <span className="text-xs text-slate-400">

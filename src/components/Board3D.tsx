@@ -64,53 +64,139 @@ function getTileSideVectors(index: number): {
 
 function createTileTopTexture(tile: Tile, ownerColor: string | null): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
-  canvas.width = 256;
-  canvas.height = 256;
+  canvas.width = 512;
+  canvas.height = 512;
   const ctx = canvas.getContext('2d')!;
-
-  ctx.fillStyle = ownerColor ? ownerColor : '#1e293b';
-  ctx.fillRect(0, 0, 256, 256);
-
-  ctx.fillStyle = '#0f172a';
-  ctx.fillRect(14, 14, 228, 228);
-
-  ctx.fillStyle = ownerColor || tile.color;
-  ctx.fillRect(14, 14, 228, 56);
 
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
-  let badge = '';
-  if (tile.type === 'start') badge = 'START';
-  else if (tile.type === 'drink') badge = '🍺 JOOK';
-  else if (tile.type === 'truth_dare') badge = '🎭 ÜLESANNE';
-  else if (tile.type === 'all_drink') badge = '🍻 KÕIK!';
-  else if (tile.price) badge = `${tile.price} 💰`;
+  if (tile.type === 'start') {
+    // Red START tile
+    ctx.fillStyle = '#dc2626';
+    ctx.fillRect(0, 0, 512, 512);
 
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 28px sans-serif';
-  ctx.fillText(badge, 128, 43);
+    // Inner glowing field
+    const rad = ctx.createRadialGradient(256, 256, 40, 256, 256, 260);
+    rad.addColorStop(0, '#ef4444');
+    rad.addColorStop(1, '#991b1b');
+    ctx.fillStyle = rad;
+    ctx.fillRect(20, 20, 472, 472);
 
-  ctx.fillStyle = '#f8fafc';
-  ctx.font = 'bold 25px sans-serif';
-  const words = tile.name.split(' ');
-  if (words.length === 1) {
-    ctx.fillText(tile.name, 128, 138);
+    // Gold borders
+    ctx.strokeStyle = '#fef08a';
+    ctx.lineWidth = 14;
+    ctx.strokeRect(26, 26, 460, 460);
+
+    ctx.strokeStyle = '#f59e0b';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(48, 48, 416, 416);
+
+    // Start Emoji
+    ctx.font = '110px sans-serif';
+    ctx.fillText('🏁', 256, 140);
+
+    // Huge START text
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '900 88px sans-serif';
+    ctx.fillText('START', 256, 275);
+
+    // +10 Coins Bonus
+    ctx.fillStyle = '#fef08a';
+    ctx.font = '900 58px sans-serif';
+    ctx.fillText('+10 💰', 256, 385);
+
+    // Bottom banner
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 30px sans-serif';
+    ctx.fillText('RING TÄIS!', 256, 455);
+  } else if (tile.type === 'all_drink') {
+    // Orange Kõik Joovad tile
+    ctx.fillStyle = '#ea580c';
+    ctx.fillRect(0, 0, 512, 512);
+
+    // Inner glowing field
+    const rad = ctx.createRadialGradient(256, 256, 40, 256, 256, 260);
+    rad.addColorStop(0, '#f97316');
+    rad.addColorStop(1, '#c2410c');
+    ctx.fillStyle = rad;
+    ctx.fillRect(20, 20, 472, 472);
+
+    // Gold borders
+    ctx.strokeStyle = '#fef08a';
+    ctx.lineWidth = 14;
+    ctx.strokeRect(26, 26, 460, 460);
+
+    ctx.strokeStyle = '#ea580c';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(48, 48, 416, 416);
+
+    // Glass clinking emoji
+    ctx.font = '110px sans-serif';
+    ctx.fillText('🍻', 256, 140);
+
+    // Huge KÕIK JOOVAD text
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '900 62px sans-serif';
+    ctx.fillText('KÕIK JOOVAD!', 256, 275);
+
+    // +1 Coin Bonus
+    ctx.fillStyle = '#fef08a';
+    ctx.font = '900 52px sans-serif';
+    ctx.fillText('+1 💰', 256, 385);
+
+    // Bottom banner
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 30px sans-serif';
+    ctx.fillText('TERVISEKS!', 256, 455);
   } else {
-    const line1 = words.slice(0, Math.ceil(words.length / 2)).join(' ');
-    const line2 = words.slice(Math.ceil(words.length / 2)).join(' ');
-    ctx.fillText(line1, 128, 122);
-    ctx.fillText(line2, 128, 156);
-  }
+    // Standard tiles: Property, Drink challenge, Truth/Dare
+    ctx.fillStyle = ownerColor ? ownerColor : '#1e293b';
+    ctx.fillRect(0, 0, 512, 512);
 
-  if (ownerColor) {
-    ctx.fillStyle = ownerColor;
-    ctx.font = 'bold 22px sans-serif';
-    ctx.fillText('OMANDATUD', 128, 212);
-  } else if (tile.type === 'property') {
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = '20px sans-serif';
-    ctx.fillText('VABA MAA', 128, 212);
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(24, 24, 464, 464);
+
+    // Top color stripe
+    ctx.fillStyle = ownerColor || tile.color;
+    ctx.fillRect(24, 24, 464, 115);
+
+    let badge = '';
+    if (tile.type === 'drink') badge = '🍺 JOOK';
+    else if (tile.type === 'truth_dare') badge = '🎭 ÜLESANNE';
+    else if (tile.price) badge = `${tile.price} 💰`;
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 50px sans-serif';
+    ctx.fillText(badge, 256, 82);
+
+    // Tile Name with larger font
+    ctx.fillStyle = '#f8fafc';
+    const words = tile.name.split(' ');
+    if (words.length === 1) {
+      ctx.font = 'bold 52px sans-serif';
+      ctx.fillText(tile.name, 256, 275);
+    } else {
+      ctx.font = 'bold 46px sans-serif';
+      const line1 = words.slice(0, Math.ceil(words.length / 2)).join(' ');
+      const line2 = words.slice(Math.ceil(words.length / 2)).join(' ');
+      ctx.fillText(line1, 256, 245);
+      ctx.fillText(line2, 256, 305);
+    }
+
+    if (ownerColor) {
+      ctx.fillStyle = ownerColor;
+      ctx.font = 'bold 42px sans-serif';
+      ctx.fillText('OMANDATUD', 256, 425);
+    } else if (tile.type === 'property') {
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '38px sans-serif';
+      ctx.fillText('VABA MAA', 256, 425);
+    } else {
+      ctx.fillStyle = '#cbd5e1';
+      ctx.font = '36px sans-serif';
+      ctx.fillText('VÕTA KAART', 256, 425);
+    }
   }
 
   const texture = new THREE.CanvasTexture(canvas);
@@ -456,26 +542,34 @@ export function Board3D({
 
     // Create 40 perimeter tiles (11x11 square) oriented outward so text is always upright when viewed from outside
     const tileMeshes: THREE.Mesh[] = [];
-    const tileGeo = new THREE.BoxGeometry(1.52, 0.42, 1.52);
+    const standardTileGeo = new THREE.BoxGeometry(1.52, 0.42, 1.52);
+    const cornerTileGeo = new THREE.BoxGeometry(2.15, 0.52, 2.15);
 
     for (let i = 0; i < TOTAL_TILES; i++) {
       const tile = tiles[i];
+      const isCorner = i === 0 || i === 10 || i === 20 || i === 30;
       const { x, z } = getTilePosition(i);
       const { rotY } = getTileSideVectors(i);
       const topTex = createTileTopTexture(tile, null);
+      const sideColor =
+        tile.type === 'start'
+          ? '#dc2626'
+          : tile.type === 'all_drink'
+          ? '#ea580c'
+          : tile.color;
       const sideMat = new THREE.MeshStandardMaterial({
-        color: tile.color,
+        color: sideColor,
         roughness: 0.45,
         metalness: 0.2,
       });
       const topMat = new THREE.MeshStandardMaterial({
         map: topTex,
-        roughness: 0.4,
+        roughness: 0.35,
       });
       const materials = [sideMat, sideMat, topMat, sideMat, sideMat, sideMat];
 
-      const mesh = new THREE.Mesh(tileGeo, materials);
-      mesh.position.set(x, 0, z);
+      const mesh = new THREE.Mesh(isCorner ? cornerTileGeo : standardTileGeo, materials);
+      mesh.position.set(x, isCorner ? 0.05 : 0, z);
       mesh.rotation.y = rotY;
       mesh.receiveShadow = true;
       mesh.castShadow = true;
@@ -756,7 +850,12 @@ export function Board3D({
 
       const materials = mesh.material as THREE.MeshStandardMaterial[];
       if (Array.isArray(materials) && materials.length === 6) {
-        const sideColor = ownerColor || tile.color;
+        const sideColor =
+          tile.type === 'start'
+            ? '#dc2626'
+            : tile.type === 'all_drink'
+            ? '#ea580c'
+            : ownerColor || tile.color;
         materials.forEach((mat, mIdx) => {
           if (mIdx === 2) {
             mat.map?.dispose();
@@ -807,7 +906,16 @@ export function Board3D({
         offsetZ = Math.sin(angle) * radius;
       }
 
-      const targetVec = new THREE.Vector3(base.x + offsetX, 0.72, base.z + offsetZ);
+      const isCorner =
+        player.pos === 0 ||
+        player.pos === 10 ||
+        player.pos === 20 ||
+        player.pos === 30;
+      const targetVec = new THREE.Vector3(
+        base.x + offsetX,
+        isCorner ? 0.85 : 0.72,
+        base.z + offsetZ
+      );
       pawnTargetsRef.current.set(player.id, targetVec);
 
       let cone = pawnMeshesRef.current.get(player.id);

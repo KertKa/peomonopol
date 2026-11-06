@@ -7,6 +7,7 @@ export interface Player {
   pos: number;
   coins: number;
   shield: boolean;
+  laps: number;
 }
 
 export interface Tile {

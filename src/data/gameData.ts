@@ -19,7 +19,7 @@ export const PLAYER_COLORS = [
 
 export const INITIAL_TILES: Tile[] = [
   // Alumine rida (0 -> 10)
-  { id: 0, name: 'START', type: 'start', owner: null, color: '#fbbf24' },
+  { id: 0, name: 'START', type: 'start', owner: null, color: '#ef4444' },
   { id: 1, name: 'Telliskivi Loomelinnak', type: 'property', price: 2, owner: null, color: '#38bdf8' },
   { id: 2, name: 'Joomiskaart', type: 'drink', owner: null, color: '#f97316' },
   { id: 3, name: 'Sveta Baar', type: 'property', price: 2, owner: null, color: '#38bdf8' },
@@ -31,7 +31,7 @@ export const INITIAL_TILES: Tile[] = [
   { id: 9, name: 'Kalaranna Promenaad', type: 'property', price: 3, owner: null, color: '#06b6d4' },
 
   // Parem veerg (10 -> 20)
-  { id: 10, name: 'Kõik joovad!', type: 'all_drink', owner: null, color: '#eab308' },
+  { id: 10, name: 'Kõik joovad!', type: 'all_drink', owner: null, color: '#f97316' },
   { id: 11, name: 'Rüütli Tänav', type: 'property', price: 3, owner: null, color: '#10b981' },
   { id: 12, name: 'Tõde või Tegu', type: 'truth_dare', owner: null, color: '#ec4899' },
   { id: 13, name: 'Pirogovi Park', type: 'property', price: 3, owner: null, color: '#10b981' },
@@ -43,7 +43,7 @@ export const INITIAL_TILES: Tile[] = [
   { id: 19, name: 'Toomemäe Loss', type: 'property', price: 4, owner: null, color: '#84cc16' },
 
   // Ülemine rida (20 -> 30)
-  { id: 20, name: 'Kõik joovad!', type: 'all_drink', owner: null, color: '#eab308' },
+  { id: 20, name: 'Kõik joovad!', type: 'all_drink', owner: null, color: '#f97316' },
   { id: 21, name: 'Pärnu Rand', type: 'property', price: 4, owner: null, color: '#a855f7' },
   { id: 22, name: 'Joomiskaart', type: 'drink', owner: null, color: '#f97316' },
   { id: 23, name: 'Vallikäär', type: 'property', price: 4, owner: null, color: '#a855f7' },
@@ -55,7 +55,7 @@ export const INITIAL_TILES: Tile[] = [
   { id: 29, name: 'Pühajärve Spa', type: 'property', price: 5, owner: null, color: '#6366f1' },
 
   // Vasak veerg (30 -> 39)
-  { id: 30, name: 'Kõik joovad!', type: 'all_drink', owner: null, color: '#eab308' },
+  { id: 30, name: 'Kõik joovad!', type: 'all_drink', owner: null, color: '#f97316' },
   { id: 31, name: 'Vanalinna Katusebaar', type: 'property', price: 5, owner: null, color: '#f43f5e' },
   { id: 32, name: 'Tõde või Tegu', type: 'truth_dare', owner: null, color: '#ec4899' },
   { id: 33, name: 'Bermuda Kolmnurk', type: 'property', price: 5, owner: null, color: '#f43f5e' },
@@ -77,10 +77,10 @@ export const RAW_CARDS = {
       "Kes kõige tõenäolisemalt muutub kunagi miljonäriks? Näidake! Võitja jagab 3 lonksu teistele.",
       "Kategooriamäng: automargid! Alustab {p}, kes esimesena kogeleb või kordab, võtab 2 lonksu.",
       "Kategooriamäng: Eesti linnad! Alustab {p}, kes jääb vahele, võtab 2 lonksu.",
-      "Kategooriamäng: jäätisemaitsed! Alustab {o}, kes jääb vahele, võtab lonksu.",
+      "Sõnamäng: {p} ütleb ühe tähe (nt M), ringiga öeldakse sõnu. Kes 3 sekundiga ei suuda, võtab lonksu.",
       "Hääletus: pitsa ananassiga – jah või ei? Vähemus võtab lonksu.",
       "Hääletus: suvi või talv? Vähemus võtab lonksu.",
-      "Hääletus: kass või koer? Vähemus võtab lonksu.",
+      "Hääletus: hommikuinimene või öökull? Vähemus võtab lonksu.",
       "Kõik, kes on täna juba vähemalt korra telefoni vaadanud, võtavad lonksu.",
       "Kõik, kellel on seljas midagi musta, võtavad lonksu.",
       "Kõik, kes on kunagi kooli hiljaks jäänud, võtavad lonksu. (Valetajad – 2 lonksu!)",
@@ -139,7 +139,7 @@ export const RAW_CARDS = {
   mid: {
     drink: [
       "Kõik vahetavad kohta päripäeva! Viimane, kes istub, võtab 2 lonksu.",
-      "Kõik vahetavad kohta vastupäeva! Viimane, kes istub, võtab 2 lonksu.",
+      "Kõik puudutavad laua all parema naabri põlve – viimane, kes reageerib, võtab 2 lonksu.",
       "{p} ja {o} vahetavad kohad ja jooke! Mõlemad võtavad lonksu üksteise klaasist (kui mõlemad on nõus) või oma klaasist.",
       "Silmavaatamise duell: {p} vs {o}. Esimene, kes naerab või pilgutab, võtab 2 lonksu.",
       "{p} ja {o} on nüüd joomasõbrad – kui üks joob, joob ka teine. Kehtib mängu lõpuni.",
@@ -197,7 +197,7 @@ export const RAW_CARDS = {
       "{p}, kanna {o} kingi järgmise käiguni.",
       "{p}, laula {o}-le romantiline serenaad 15 sekundit.",
       "{p}, hoia jääkuubikut käes, kuni see sulab – või võta 2 lonksu.",
-      "{p}, lase {o}-l postitada sinu telefonist story emojiga, mille tema valib.",
+      "{p}, ava oma telefoni viimati tehtud foto ja lase {o}-l sellele 10-palli skaalal hinne anda.",
       "{p}, kallista kõiki, kes on nõus – kes kallistada ei taha, saab high five'i.",
       "{p}, mängi järgmise käiguni {o} butlerit – too talle, mida ta palub.",
       "{p}, tee 20 sekundit oma parimat TikToki tantsu.",
@@ -209,7 +209,7 @@ export const RAW_CARDS = {
       "Lonksuvõistlus! {p} vs {o} – kes esimesena 3 lonksu võtab, võidab. Kaotaja võtab veel ühe.",
       "{p}, vali üks mängija – ta joob purgi tühjaks või maksab 3 💰.",
       "Kõik peale {p} võtavad 2 lonksu. {p} on täna kuningas.",
-      "Kätemaadlus: {p} vs {o}. Kaotaja joob 3 lonksu.",
+      "Kiire reaktsioon: {p} hüüab 'KLAASID!', viimane kes oma klaasi tõstab, joob 3 lonksu.",
       "Kes kõige tõenäolisemalt teeb täna midagi, mida homme kahetseb? Näidake! Enim häält – 3 lonksu.",
       "Viimane, kes paneb käe pea peale, joob 3 lonksu!",
       "{p} paneb kõigile reegli kuni mängu lõpuni. Rikkuja joob 2 lonksu.",
@@ -221,7 +221,7 @@ export const RAW_CARDS = {
       "Ma pole kunagi… teinud midagi, mida oma vanematele kunagi ei räägiks. Kes on, võtab 2 lonksu.",
       "Ma pole kunagi… kellegagi siin ruumis flirtinud. Kes on, võtab 2 lonksu.",
       "{p}, vali joomasõber. Te mõlemad joote 2 lonksu käed ristis (nagu pulmas).",
-      "Duell: {p} ja {o} vaatavad teineteisele 30 sekundit silma. Kes pilku ära pöörab, joob 3 lonksu.",
+      "Salapärane toost: {p} joob 2 lonksu ja sosistab {o}-le ühe sõna, mida {o} peab kehakeelega teistele seletama.",
       "Kes kõige tõenäolisemalt abiellub esimesena? Näidake! Enim häält – 3 lonksu, aga ka lohutuseks +1 💰.",
       "Kõik mängijad vasakul pool {p}-st joovad 2 lonksu, paremal pool 1 lonks.",
       "Tõde või lonks: {p} küsib {o}-lt ükskõik mida. Kui {o} ei vasta, joob {o} 3 lonksu.",
@@ -229,7 +229,7 @@ export const RAW_CARDS = {
     ],
     truth: [
       "{p}, kes siin ruumis on sinu arvates kõige kuumem? Ütle välja!",
-      "{p}, mis on kõige julgem asi, mida oled kunagi teinud?",
+      "{p}, mis on kõige pöörasem otsus, mille oled teinud vähem kui 5 minutiga?",
       "{p}, kellega siin seltskonnas tahaksid järgmisele peole minna ja miks?",
       "{p}, mida sa {o} kohta tegelikult arvad? Aus vastus!",
       "{p}, mis on su suurim saladus, mille julged täna välja öelda?",
@@ -239,18 +239,18 @@ export const RAW_CARDS = {
       "{p}, kellega siin ruumis läheksid kohtingule, kui peaksid valima?",
       "{p}, mis on kõige suurem asi, mille oled kunagi sõbra eest varjanud?",
       "{p}, kas oled kunagi kellegi sõnumeid tema teadmata lugenud?",
-      "{p}, mis on kõige hullem asi, mida oled teinud ja millest keegi ei tea?",
+      "{p}, mis on suurim saladus, mida hoiad siiani oma vanemate eest?",
       "{p}, kelle siin ruumis blokeeriksid, kui see oleks täiesti anonüümne?",
       "{p}, mis on kõige piinlikum asi su otsinguajaloos?",
       "{p}, kes siin ruumis on sinu arvates kõige suurem flirtija?",
       "{p}, mis on su kõige suurem kahetsus viimasest aastast?",
       "{p}, mida sa kunagi ei ütleks oma vanematele, aga ütled meile praegu?",
       "{p}, kellega siin ruumis oleks sul kõige raskem elada ühes toas?",
-      "{p}, kas oled kunagi kellegi siinviibija kohta valetanud? Mis see oli?",
+      "{p}, kas oled kunagi kedagi sotsiaalmeedias ghostinud ja miks?",
       "{p}, mis on kõige julgem sõnum, mille oled kunagi saatnud?",
     ],
     dare: [
-      "{p}, kätemaadle {o}-ga. Kaotaja joob 2 lonksu.",
+      "{p}, tee {o}-ga 20-sekundiline 'põrand on laava' väljakutse – kumbki ei tohi jalgu maha panna!",
       "{p}, hoia {o} käest kinni kuni oma järgmise käiguni.",
       "{p}, tee {o}-ga koos 20 sekundit tantsu keset tuba.",
       "{p}, helista kellelegi ja laula talle 'Palju õnne sünnipäevaks'.",
@@ -261,7 +261,7 @@ export const RAW_CARDS = {
       "{p}, tee {o}-le 1 minuti jooksul õlamassaaži (kui {o} on nõus).",
       "{p}, kanna {o} seljas või süles ümber laua (või tee 15 kükki).",
       "{p}, laula järgmise käiguni kõike, mida räägid.",
-      "{p}, lase {o}-l joonistada sulle markeriga vuntsid.",
+      "{p}, kanna laual olevat salvrätti või mütsi nagu krooni järgmise 2 ringi vältel!",
       "{p}, tee dramaatiline armastusavaldus esimesele esemele, mille {o} näitab.",
       "{p}, tantsi 30 sekundit laulu järgi, mille grupp valib – täiega!",
       "{p}, lase {o}-l lugeda ette sinu viimased 3 otsingut.",
