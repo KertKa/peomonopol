@@ -22,13 +22,19 @@ import {
   drawPartyCard,
   getStageForRound,
   getStageName,
+  getRandomHostLine,
 } from './data/gameData';
 import type { Player, Tile } from './types';
 
 type ActiveModal =
   | { type: 'buy_property'; tile: Tile }
   | { type: 'pay_rent'; tile: Tile; owner: Player }
-  | { type: 'card'; tileType: 'drink' | 'truth_dare'; text: string }
+  | {
+      type: 'card';
+      tileType: 'drink' | 'truth_dare';
+      category: 'drink' | 'truth' | 'dare';
+      text: string;
+    }
   | { type: 'all_drink' }
   | { type: 'shop' }
   | { type: 'game_over' }
@@ -51,7 +57,7 @@ export function App() {
   const [tiles, setTiles] = useState<Tile[]>(INITIAL_TILES);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [round, setRound] = useState(1);
-  const [usedCardIds, setUsedCardIds] = useState<number[]>([]);
+  const [usedCardIds, setUsedCardIds] = useState<string[]>([]);
 
   // Dice, movement, camera & card draw animation state
   const [diceValue, setDiceValue] = useState(6);
@@ -103,7 +109,8 @@ export function App() {
     setCameraMode('overview');
     setFocusedTileId(null);
     setGameStarted(true);
-    showToast('Pidu algab! Veereta täringut!');
+    const hostStart = getRandomHostLine('start');
+    showToast(hostStart || 'Pidu algab! Veereta täringut!');
   };
 
   const handleResetGame = () => {
@@ -128,12 +135,17 @@ export function App() {
     } else {
       if (round >= maxRounds) {
         setModal({ type: 'game_over' });
+        const hostEnd = getRandomHostLine('end');
+        if (hostEnd) showToast(hostEnd, 4500);
       } else {
         const nextRound = round + 1;
         setRound(nextRound);
         setCurrentIdx(0);
         const stageName = getStageName(getStageForRound(nextRound, maxRounds));
-        showToast(`Algab ${nextRound}. ring (${stageName})!`);
+        const prevStage = getStageForRound(round, maxRounds);
+        const nextStage = getStageForRound(nextRound, maxRounds);
+        const stageComment = prevStage !== nextStage ? ` ${getRandomHostLine('stage')}` : '';
+        showToast(`Algab ${nextRound}. ring (${stageName})!${stageComment}`);
       }
     }
   };
@@ -182,7 +194,12 @@ export function App() {
       setCameraMode('overview');
       setDrawingDeck(tile.type);
       window.setTimeout(() => {
-        setModal({ type: 'card', tileType: tile.type as 'drink' | 'truth_dare', text: cardResult.text });
+        setModal({
+          type: 'card',
+          tileType: tile.type as 'drink' | 'truth_dare',
+          category: cardResult.category,
+          text: cardResult.text,
+        });
       }, 750);
       return;
     }
@@ -218,8 +235,9 @@ export function App() {
         activePlayer.coins += 1;
         workingPlayers[currentIdx] = activePlayer;
         setPlayers([...workingPlayers]);
+        const hostSix = getRandomHostLine('six');
         showToast(
-          `Veeretasid 1 või 6! Võta ${drinkWord}! (+1 💰)`,
+          `Veeretasid ${rolled}! ${hostSix} (Võta ${drinkWord}! +1 💰)`,
           4000
         );
       }
@@ -279,7 +297,8 @@ export function App() {
 
     setPlayers(nextPlayers);
     setTiles(nextTiles);
-    showToast(`${activePlayer.name} ostis koha "${tile.name}"!`);
+    const hostBuy = getRandomHostLine('buy');
+    showToast(`${activePlayer.name} ostis koha "${tile.name}"! ${hostBuy}`);
     endTurn();
   };
 
@@ -300,7 +319,8 @@ export function App() {
     if (useShield) {
       showToast(`${players[currentIdx].name} kasutas kilpi 🛡️! ${owner.name} sai +2 💰.`);
     } else {
-      showToast(`${players[currentIdx].name} võttis ${drinkWordPart} (+1 💰) ja ${owner.name} sai +2 💰!`);
+      const hostChug = getRandomHostLine('chug');
+      showToast(`${players[currentIdx].name} võttis ${drinkWordPart} (+1 💰) ja ${owner.name} sai +2 💰! ${hostChug}`);
     }
     endTurn();
   };
@@ -328,7 +348,8 @@ export function App() {
     if (useShield) {
       showToast(`${players[currentIdx].name} blokeeris kaardi kilbiga 🛡️!`);
     } else {
-      showToast(`${players[currentIdx].name} maksis trahvi ja võttis ${drinkWordPart}!`);
+      const hostPass = getRandomHostLine('pass');
+      showToast(`${players[currentIdx].name} loobus! ${hostPass}`);
     }
     endTurn();
   };
@@ -350,7 +371,8 @@ export function App() {
     );
     setPlayers(nextPlayers);
     setModal(null);
-    showToast(`${active.name} ostis Kilbi 🛡️!`);
+    const hostShop = getRandomHostLine('shop');
+    showToast(`${active.name} ostis Kilbi 🛡️! ${hostShop}`);
   };
 
   const handleSendDrinkToPlayer = (targetId: number) => {
@@ -392,7 +414,8 @@ export function App() {
     setModal(null);
     setCameraMode('focus');
     setFocusedTileId(newActivePos);
-    showToast(`${active.name} vahetas kohad mängijaga ${target.name}!`);
+    const hostSteal = getRandomHostLine('steal');
+    showToast(`${active.name} vahetas kohad mängijaga ${target.name}! ${hostSteal}`);
 
     window.setTimeout(() => {
       resolveTileLanding(newActivePos, nextPlayers, tiles, currentIdx);
@@ -782,22 +805,34 @@ export function App() {
                   damping: 18,
                 }}
                 className={`w-full max-w-md rounded-3xl bg-slate-900 border-2 p-7 text-center shadow-2xl ${
-                  modal.tileType === 'drink'
+                  modal.category === 'drink'
                     ? 'border-amber-400/80 shadow-amber-500/20'
-                    : 'border-pink-500/80 shadow-pink-500/20'
+                    : modal.category === 'truth'
+                    ? 'border-pink-500/80 shadow-pink-500/20'
+                    : 'border-orange-500/80 shadow-orange-500/20'
                 }`}
               >
                 <div className="text-5xl mb-3">
-                  {modal.tileType === 'drink' ? '🍺' : '🎭'}
+                  {modal.category === 'drink'
+                    ? '🍺'
+                    : modal.category === 'truth'
+                    ? '🎭'
+                    : '🔥'}
                 </div>
                 <h2
                   className={`text-xl font-black mb-4 ${
-                    modal.tileType === 'drink' ? 'text-amber-400' : 'text-pink-400'
+                    modal.category === 'drink'
+                      ? 'text-amber-400'
+                      : modal.category === 'truth'
+                      ? 'text-pink-400'
+                      : 'text-orange-400'
                   }`}
                 >
-                  {modal.tileType === 'drink'
+                  {modal.category === 'drink'
                     ? 'JOOMISCHALLENGE'
-                    : 'TÕDE VÕI TEGU'}
+                    : modal.category === 'truth'
+                    ? 'TÕDE'
+                    : 'TEGU'}
                 </h2>
                 <p className="text-white text-lg font-medium leading-relaxed mb-7">
                   {modal.text}
