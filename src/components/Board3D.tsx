@@ -149,53 +149,130 @@ function createTileTopTexture(tile: Tile, ownerColor: string | null): THREE.Canv
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 30px sans-serif';
     ctx.fillText('TERVISEKS!', 256, 455);
+  } else if (tile.type === 'drink') {
+    // Full Orange Drink Tile
+    ctx.fillStyle = '#ea580c';
+    ctx.fillRect(0, 0, 512, 512);
+
+    // Inner glowing field
+    const rad = ctx.createRadialGradient(256, 256, 40, 256, 256, 260);
+    rad.addColorStop(0, '#f97316');
+    rad.addColorStop(1, '#c2410c');
+    ctx.fillStyle = rad;
+    ctx.fillRect(16, 16, 480, 480);
+
+    // Gold borders
+    ctx.strokeStyle = '#fef08a';
+    ctx.lineWidth = 12;
+    ctx.strokeRect(22, 22, 468, 468);
+
+    ctx.strokeStyle = '#ea580c';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(40, 40, 432, 432);
+
+    // Beer emoji
+    ctx.font = '105px sans-serif';
+    ctx.fillText('🍺', 256, 135);
+
+    // Huge JOOMISKAART text
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '900 64px sans-serif';
+    ctx.fillText('JOOMISKAART', 256, 275);
+
+    // Large VÕTA KAART action
+    ctx.fillStyle = '#fef08a';
+    ctx.font = '900 50px sans-serif';
+    ctx.fillText('VÕTA KAART', 256, 385);
+
+    // Bottom banner
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 30px sans-serif';
+    ctx.fillText('LONKS VÕI KAKS!', 256, 455);
+  } else if (tile.type === 'truth_dare') {
+    // Full Pink Truth & Dare Tile
+    ctx.fillStyle = '#db2777';
+    ctx.fillRect(0, 0, 512, 512);
+
+    // Inner glowing field
+    const rad = ctx.createRadialGradient(256, 256, 40, 256, 256, 260);
+    rad.addColorStop(0, '#ec4899');
+    rad.addColorStop(1, '#9d174d');
+    ctx.fillStyle = rad;
+    ctx.fillRect(16, 16, 480, 480);
+
+    // Glowing border
+    ctx.strokeStyle = '#fdf2f8';
+    ctx.lineWidth = 12;
+    ctx.strokeRect(22, 22, 468, 468);
+
+    ctx.strokeStyle = '#be185d';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(40, 40, 432, 432);
+
+    // Drama mask emoji
+    ctx.font = '105px sans-serif';
+    ctx.fillText('🎭', 256, 135);
+
+    // Huge TÕDE VÕI TEGU text
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '900 60px sans-serif';
+    ctx.fillText('TÕDE VÕI TEGU', 256, 275);
+
+    // Large VÕTA KAART action
+    ctx.fillStyle = '#fef08a';
+    ctx.font = '900 50px sans-serif';
+    ctx.fillText('VÕTA KAART', 256, 385);
+
+    // Bottom banner
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 30px sans-serif';
+    ctx.fillText('PÕNEV ÜLESANNE!', 256, 455);
   } else {
-    // Standard tiles: Property, Drink challenge, Truth/Dare
+    // Standard property tiles with ENLARGED text
     ctx.fillStyle = ownerColor ? ownerColor : '#1e293b';
     ctx.fillRect(0, 0, 512, 512);
 
     ctx.fillStyle = '#0f172a';
-    ctx.fillRect(24, 24, 464, 464);
+    ctx.fillRect(20, 20, 472, 472);
 
-    // Top color stripe
+    // Top color stripe - taller for maximum visibility
     ctx.fillStyle = ownerColor || tile.color;
-    ctx.fillRect(24, 24, 464, 115);
+    ctx.fillRect(20, 20, 472, 130);
 
-    let badge = '';
-    if (tile.type === 'drink') badge = '🍺 JOOK';
-    else if (tile.type === 'truth_dare') badge = '🎭 ÜLESANNE';
-    else if (tile.price) badge = `${tile.price} 💰`;
-
+    // Top badge / price - enlarged font
+    const badge = tile.price ? `${tile.price} 💰` : 'MAA';
     ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 50px sans-serif';
-    ctx.fillText(badge, 256, 82);
+    ctx.font = '900 66px sans-serif';
+    ctx.fillText(badge, 256, 85);
 
-    // Tile Name with larger font
-    ctx.fillStyle = '#f8fafc';
+    // Property name with enlarged font
+    ctx.fillStyle = '#ffffff';
     const words = tile.name.split(' ');
     if (words.length === 1) {
-      ctx.font = 'bold 52px sans-serif';
+      ctx.font = '900 64px sans-serif';
       ctx.fillText(tile.name, 256, 275);
+    } else if (words.length === 2) {
+      ctx.font = '900 58px sans-serif';
+      ctx.fillText(words[0], 256, 240);
+      ctx.fillText(words[1], 256, 310);
     } else {
-      ctx.font = 'bold 46px sans-serif';
-      const line1 = words.slice(0, Math.ceil(words.length / 2)).join(' ');
-      const line2 = words.slice(Math.ceil(words.length / 2)).join(' ');
-      ctx.fillText(line1, 256, 245);
-      ctx.fillText(line2, 256, 305);
+      const mid = Math.ceil(words.length / 2);
+      const line1 = words.slice(0, mid).join(' ');
+      const line2 = words.slice(mid).join(' ');
+      ctx.font = '900 52px sans-serif';
+      ctx.fillText(line1, 256, 240);
+      ctx.fillText(line2, 256, 310);
     }
 
+    // Bottom status text - enlarged font
     if (ownerColor) {
       ctx.fillStyle = ownerColor;
-      ctx.font = 'bold 42px sans-serif';
-      ctx.fillText('OMANDATUD', 256, 425);
-    } else if (tile.type === 'property') {
-      ctx.fillStyle = '#94a3b8';
-      ctx.font = '38px sans-serif';
-      ctx.fillText('VABA MAA', 256, 425);
+      ctx.font = '900 48px sans-serif';
+      ctx.fillText('OMANDATUD', 256, 435);
     } else {
-      ctx.fillStyle = '#cbd5e1';
-      ctx.font = '36px sans-serif';
-      ctx.fillText('VÕTA KAART', 256, 425);
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '900 46px sans-serif';
+      ctx.fillText('VABA MAA', 256, 435);
     }
   }
 
@@ -554,8 +631,10 @@ export function Board3D({
       const sideColor =
         tile.type === 'start'
           ? '#dc2626'
-          : tile.type === 'all_drink'
+          : tile.type === 'all_drink' || tile.type === 'drink'
           ? '#ea580c'
+          : tile.type === 'truth_dare'
+          ? '#db2777'
           : tile.color;
       const sideMat = new THREE.MeshStandardMaterial({
         color: sideColor,
@@ -853,8 +932,10 @@ export function Board3D({
         const sideColor =
           tile.type === 'start'
             ? '#dc2626'
-            : tile.type === 'all_drink'
+            : tile.type === 'all_drink' || tile.type === 'drink'
             ? '#ea580c'
+            : tile.type === 'truth_dare'
+            ? '#db2777'
             : ownerColor || tile.color;
         materials.forEach((mat, mIdx) => {
           if (mIdx === 2) {
