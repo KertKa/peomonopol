@@ -21,6 +21,7 @@ export interface Tile {
 export type RoundStage = 'early' | 'mid' | 'late';
 
 export interface PartyCardTemplate {
+  id: number;
   stage: RoundStage;
   type: 'drink' | 'truth_dare';
   alcoholText: string;

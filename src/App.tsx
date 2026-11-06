@@ -51,6 +51,7 @@ export function App() {
   const [tiles, setTiles] = useState<Tile[]>(INITIAL_TILES);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [round, setRound] = useState(1);
+  const [usedCardIds, setUsedCardIds] = useState<number[]>([]);
 
   // Dice, movement, camera & card draw animation state
   const [diceValue, setDiceValue] = useState(6);
@@ -96,6 +97,7 @@ export function App() {
     setCurrentIdx(0);
     setRound(1);
     setMaxRounds(selectedRounds);
+    setUsedCardIds([]);
     setModal(null);
     setDrawingDeck(null);
     setCameraMode('overview');
@@ -109,6 +111,7 @@ export function App() {
     setDrawingDeck(null);
     setCameraMode('overview');
     setFocusedTileId(null);
+    setUsedCardIds([]);
     setGameStarted(false);
   };
 
@@ -165,19 +168,21 @@ export function App() {
     }
 
     if (tile.type === 'drink' || tile.type === 'truth_dare') {
-      const cardText = drawPartyCard(
+      const cardResult = drawPartyCard(
         tile.type,
         round,
         activePlayer.name,
         updatedPlayers.map((p) => p.name),
         nonAlcoholic,
+        usedCardIds,
         maxRounds
       );
+      setUsedCardIds(cardResult.newUsedIds);
       // Smoothly pull camera back toward overview so the 3D deck card flight is framed clearly
       setCameraMode('overview');
       setDrawingDeck(tile.type);
       window.setTimeout(() => {
-        setModal({ type: 'card', tileType: tile.type as 'drink' | 'truth_dare', text: cardText });
+        setModal({ type: 'card', tileType: tile.type as 'drink' | 'truth_dare', text: cardResult.text });
       }, 750);
       return;
     }
