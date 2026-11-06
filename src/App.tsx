@@ -11,7 +11,7 @@ import {
   Sparkles,
   RotateCcw,
 } from 'lucide-react';
-import { Board3D } from './components/Board3D';
+import { Board3D, type CameraMode } from './components/Board3D';
 import {
   INITIAL_TILES,
   PLAYER_COLORS,
@@ -47,11 +47,13 @@ export function App() {
   const [currentIdx, setCurrentIdx] = useState(0);
   const [round, setRound] = useState(1);
 
-  // Dice, movement & card draw animation state
+  // Dice, movement, camera & card draw animation state
   const [diceValue, setDiceValue] = useState(6);
   const [isRolling, setIsRolling] = useState(false);
   const [isMoving, setIsMoving] = useState(false);
   const [drawingDeck, setDrawingDeck] = useState<'drink' | 'truth_dare' | null>(null);
+  const [cameraMode, setCameraMode] = useState<CameraMode>('overview');
+  const [focusedTileId, setFocusedTileId] = useState<number | null>(null);
 
   // Overlays
   const [toast, setToast] = useState<string | null>(null);
@@ -90,6 +92,8 @@ export function App() {
     setRound(1);
     setModal(null);
     setDrawingDeck(null);
+    setCameraMode('overview');
+    setFocusedTileId(null);
     setGameStarted(true);
     showToast('Pidu algab! Veereta täringut!');
   };
@@ -97,6 +101,8 @@ export function App() {
   const handleResetGame = () => {
     setModal(null);
     setDrawingDeck(null);
+    setCameraMode('overview');
+    setFocusedTileId(null);
     setGameStarted(false);
   };
 
@@ -105,6 +111,8 @@ export function App() {
     setModal(null);
     setDrawingDeck(null);
     setShopAction(null);
+    setCameraMode('overview');
+    setFocusedTileId(null);
 
     if (currentIdx + 1 < players.length) {
       setCurrentIdx(currentIdx + 1);
@@ -119,7 +127,7 @@ export function App() {
     }
   };
 
-  // Trigger landing logic on a tile
+  // Trigger landing logic on a tile (called after the 0.8s landing focus & pulse)
   const resolveTileLanding = (
     landedPos: number,
     updatedPlayers: Player[],
@@ -131,7 +139,7 @@ export function App() {
 
     if (tile.type === 'start') {
       showToast(`${activePlayer.name} maandus START ruudul (+2 💰)!`);
-      window.setTimeout(() => endTurn(), 1400);
+      window.setTimeout(() => endTurn(), 1200);
       return;
     }
 
@@ -140,7 +148,7 @@ export function App() {
         setModal({ type: 'buy_property', tile });
       } else if (tile.owner === activePlayer.id) {
         showToast(`${activePlayer.name} puhkab oma kinnisvaral: ${tile.name}`);
-        window.setTimeout(() => endTurn(), 1400);
+        window.setTimeout(() => endTurn(), 1200);
       } else {
         const owner = updatedPlayers.find((p) => p.id === tile.owner)!;
         setModal({ type: 'pay_rent', tile, owner });
@@ -156,7 +164,8 @@ export function App() {
         updatedPlayers.map((p) => p.name),
         nonAlcoholic
       );
-      // Trigger 3D card lift & spin animation from center deck first
+      // Smoothly pull camera back toward overview so the 3D deck card flight is framed clearly
+      setCameraMode('overview');
       setDrawingDeck(tile.type);
       window.setTimeout(() => {
         setModal({ type: 'card', tileType: tile.type as 'drink' | 'truth_dare', text: cardText });
@@ -169,10 +178,13 @@ export function App() {
     }
   };
 
-  // Roll Dice & Move Cone Step-by-Step
+  // Roll Dice & Move Cone Step-by-Step with Camera Follow & Landing Zoom
   const handleRollDice = () => {
     if (isRolling || isMoving || drawingDeck !== null || modal !== null) return;
 
+    // 1. Keep camera in overview while dice rolls
+    setCameraMode('overview');
+    setFocusedTileId(null);
     setIsRolling(true);
     const rolled = Math.floor(Math.random() * 6) + 1;
 
@@ -180,6 +192,9 @@ export function App() {
       setDiceValue(rolled);
       setIsRolling(false);
       setIsMoving(true);
+
+      // 2. Smoothly zoom camera in to follow active player's cone
+      setCameraMode('follow');
 
       let workingPlayers = [...players];
       const activePlayer = { ...workingPlayers[currentIdx] };
@@ -195,36 +210,43 @@ export function App() {
         );
       }
 
-      let stepsMoved = 0;
-      const stepInterval = window.setInterval(() => {
-        stepsMoved += 1;
-        const nextPos = (activePlayer.pos + 1) % TOTAL_TILES;
-        activePlayer.pos = nextPos;
+      // Brief lead-in (~450ms) as camera arrives at the pawn before stepping
+      window.setTimeout(() => {
+        let stepsMoved = 0;
+        const stepInterval = window.setInterval(() => {
+          stepsMoved += 1;
+          const nextPos = (activePlayer.pos + 1) % TOTAL_TILES;
+          activePlayer.pos = nextPos;
 
-        // Passing or landing on START grants +2 coins
-        if (nextPos === 0) {
-          activePlayer.coins += 2;
-          showToast(`${activePlayer.name} läbis START ruudu (+2 💰)!`);
-        }
+          // Passing or landing on START grants +2 coins
+          if (nextPos === 0) {
+            activePlayer.coins += 2;
+            showToast(`${activePlayer.name} läbis START ruudu (+2 💰)!`);
+          }
 
-        workingPlayers = workingPlayers.map((p, idx) =>
-          idx === currentIdx ? { ...activePlayer } : p
-        );
-        setPlayers([...workingPlayers]);
+          workingPlayers = workingPlayers.map((p, idx) =>
+            idx === currentIdx ? { ...activePlayer } : p
+          );
+          setPlayers([...workingPlayers]);
 
-        if (stepsMoved >= rolled) {
-          window.clearInterval(stepInterval);
-          window.setTimeout(() => {
-            setIsMoving(false);
-            resolveTileLanding(
-              activePlayer.pos,
-              workingPlayers,
-              tiles,
-              currentIdx
-            );
-          }, 320);
-        }
-      }, 220);
+          if (stepsMoved >= rolled) {
+            window.clearInterval(stepInterval);
+            // 3. Final landing zoom (3x closer) + tile pulse for 0.8s before modal opens
+            setCameraMode('focus');
+            setFocusedTileId(activePlayer.pos);
+
+            window.setTimeout(() => {
+              setIsMoving(false);
+              resolveTileLanding(
+                activePlayer.pos,
+                workingPlayers,
+                tiles,
+                currentIdx
+              );
+            }, 850);
+          }
+        }, 280);
+      }, 450);
     }, 750);
   };
 
@@ -354,11 +376,13 @@ export function App() {
     setPlayers(nextPlayers);
     setShopAction(null);
     setModal(null);
+    setCameraMode('focus');
+    setFocusedTileId(newActivePos);
     showToast(`${active.name} vahetas kohad mängijaga ${target.name}!`);
 
     window.setTimeout(() => {
       resolveTileLanding(newActivePos, nextPlayers, tiles, currentIdx);
-    }, 650);
+    }, 850);
   };
 
   const activePlayer = players[currentIdx];
@@ -383,6 +407,8 @@ export function App() {
         diceValue={diceValue}
         isRolling={isRolling}
         drawingDeck={drawingDeck}
+        cameraMode={cameraMode}
+        focusedTileId={focusedTileId}
       />
 
       {/* SETUP OVERLAY */}

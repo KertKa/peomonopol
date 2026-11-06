@@ -4,6 +4,8 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TOTAL_TILES } from '../data/gameData';
 import type { Player, Tile } from '../types';
 
+export type CameraMode = 'overview' | 'follow' | 'focus';
+
 interface Board3DProps {
   tiles: Tile[];
   players: Player[];
@@ -11,10 +13,15 @@ interface Board3DProps {
   diceValue: number;
   isRolling: boolean;
   drawingDeck: 'drink' | 'truth_dare' | null;
+  cameraMode: CameraMode;
+  focusedTileId: number | null;
 }
 
 const STEP = 1.65;
 const HALF = 5 * STEP; // 11x11 grid: 10 intervals per side (-5*STEP to +5*STEP)
+
+const OVERVIEW_POS = new THREE.Vector3(0, 21.5, 20.5);
+const OVERVIEW_TARGET = new THREE.Vector3(0, 0, 0.8);
 
 export function getTilePosition(index: number): { x: number; z: number } {
   const i = ((index % TOTAL_TILES) + TOTAL_TILES) % TOTAL_TILES;
@@ -28,6 +35,31 @@ export function getTilePosition(index: number): { x: number; z: number } {
     return { x: HALF - (i - 20) * STEP, z: -HALF };
   }
   return { x: -HALF, z: -HALF + (i - 30) * STEP };
+}
+
+// Returns the outward normal, forward movement tangent, and Y rotation for a tile index (0..39)
+function getTileSideVectors(index: number): {
+  outX: number;
+  outZ: number;
+  fwdX: number;
+  fwdZ: number;
+  rotY: number;
+} {
+  const i = ((index % TOTAL_TILES) + TOTAL_TILES) % TOTAL_TILES;
+  if (i < 10) {
+    // Bottom edge: moving left -> right (+X), outside is +Z
+    return { outX: 0, outZ: 1, fwdX: 1, fwdZ: 0, rotY: 0 };
+  }
+  if (i < 20) {
+    // Right edge: moving bottom -> top (-Z), outside is +X
+    return { outX: 1, outZ: 0, fwdX: 0, fwdZ: -1, rotY: Math.PI / 2 };
+  }
+  if (i < 30) {
+    // Top edge: moving right -> left (-X), outside is -Z
+    return { outX: 0, outZ: -1, fwdX: -1, fwdZ: 0, rotY: Math.PI };
+  }
+  // Left edge: moving top -> bottom (+Z), outside is -X
+  return { outX: -1, outZ: 0, fwdX: 0, fwdZ: 1, rotY: -Math.PI / 2 };
 }
 
 function createTileTopTexture(tile: Tile, ownerColor: string | null): THREE.CanvasTexture {
@@ -94,7 +126,6 @@ function createDeckCardTexture(deckType: 'drink' | 'truth_dare'): THREE.CanvasTe
 
   const isDrink = deckType === 'drink';
 
-  // Rich gradient background
   const grad = ctx.createLinearGradient(0, 0, 512, 768);
   if (isDrink) {
     grad.addColorStop(0, '#7c2d12');
@@ -108,11 +139,9 @@ function createDeckCardTexture(deckType: 'drink' | 'truth_dare'): THREE.CanvasTe
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, 512, 768);
 
-  // Dark inner card panel
   ctx.fillStyle = '#090d16';
   ctx.fillRect(28, 28, 456, 712);
 
-  // Ornate glowing border
   ctx.strokeStyle = isDrink ? '#fbbf24' : '#f472b6';
   ctx.lineWidth = 8;
   ctx.strokeRect(46, 46, 420, 676);
@@ -121,7 +150,6 @@ function createDeckCardTexture(deckType: 'drink' | 'truth_dare'): THREE.CanvasTe
   ctx.lineWidth = 3;
   ctx.strokeRect(62, 62, 388, 644);
 
-  // Corner diamonds
   const corners = [
     [76, 76],
     [436, 76],
@@ -135,7 +163,6 @@ function createDeckCardTexture(deckType: 'drink' | 'truth_dare'): THREE.CanvasTe
     ctx.fill();
   }
 
-  // Center glowing medallion
   const radGrad = ctx.createRadialGradient(256, 320, 20, 256, 320, 145);
   if (isDrink) {
     radGrad.addColorStop(0, 'rgba(251, 191, 36, 0.45)');
@@ -155,13 +182,11 @@ function createDeckCardTexture(deckType: 'drink' | 'truth_dare'): THREE.CanvasTe
   ctx.arc(256, 320, 105, 0, Math.PI * 2);
   ctx.stroke();
 
-  // Central Icon
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.font = '115px sans-serif';
   ctx.fillText(isDrink ? '🍺' : '🎭', 256, 325);
 
-  // Title banner
   ctx.fillStyle = '#ffffff';
   ctx.font = '900 42px sans-serif';
   ctx.fillText(isDrink ? 'JOOMIS-' : 'TÕDE VÕI', 256, 515);
@@ -254,6 +279,8 @@ export function Board3D({
   diceValue,
   isRolling,
   drawingDeck,
+  cameraMode,
+  focusedTileId,
 }: Board3DProps) {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const tileMeshesRef = useRef<THREE.Mesh[]>([]);
@@ -263,15 +290,31 @@ export function Board3D({
   const drinkFlyCardRef = useRef<THREE.Mesh | null>(null);
   const truthFlyCardRef = useRef<THREE.Mesh | null>(null);
   const drawAnimStartRef = useRef<number | null>(null);
+  const pulseStartRef = useRef<number | null>(null);
 
   const isRollingRef = useRef(isRolling);
   const diceValueRef = useRef(diceValue);
   const drawingDeckRef = useRef(drawingDeck);
-  const activePlayerIdRef = useRef<number | null>(players[activePlayerIndex]?.id ?? null);
+  const cameraModeRef = useRef<CameraMode>(cameraMode);
+  const focusedTileIdRef = useRef<number | null>(focusedTileId);
+  const activePlayerRef = useRef<Player | null>(players[activePlayerIndex] ?? null);
 
   isRollingRef.current = isRolling;
   diceValueRef.current = diceValue;
-  activePlayerIdRef.current = players[activePlayerIndex]?.id ?? null;
+  activePlayerRef.current = players[activePlayerIndex] ?? null;
+
+  useEffect(() => {
+    cameraModeRef.current = cameraMode;
+  }, [cameraMode]);
+
+  useEffect(() => {
+    focusedTileIdRef.current = focusedTileId;
+    if (focusedTileId !== null) {
+      pulseStartRef.current = performance.now();
+    } else {
+      pulseStartRef.current = null;
+    }
+  }, [focusedTileId]);
 
   useEffect(() => {
     drawingDeckRef.current = drawingDeck;
@@ -289,7 +332,7 @@ export function Board3D({
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color('#090d16');
-    scene.fog = new THREE.FogExp2('#090d16', 0.015);
+    scene.fog = new THREE.FogExp2('#090d16', 0.014);
 
     const camera = new THREE.PerspectiveCamera(
       45,
@@ -297,7 +340,7 @@ export function Board3D({
       0.1,
       120
     );
-    camera.position.set(0, 21.5, 20.5);
+    camera.position.copy(OVERVIEW_POS);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(container.clientWidth, container.clientHeight);
@@ -311,14 +354,14 @@ export function Board3D({
     controls.enableDamping = true;
     controls.dampingFactor = 0.06;
     controls.enablePan = false;
-    controls.minDistance = 13;
-    controls.maxDistance = 34;
-    controls.minPolarAngle = Math.PI / 6;
-    controls.maxPolarAngle = Math.PI / 2.35;
-    controls.target.set(0, 0, 0.8);
+    controls.minDistance = 4;
+    controls.maxDistance = 36;
+    controls.minPolarAngle = Math.PI / 8;
+    controls.maxPolarAngle = Math.PI / 2.25;
+    controls.target.copy(OVERVIEW_TARGET);
 
     // Lighting
-    const ambientLight = new THREE.AmbientLight('#ffffff', 0.9);
+    const ambientLight = new THREE.AmbientLight('#ffffff', 0.92);
     scene.add(ambientLight);
 
     const dirLight = new THREE.DirectionalLight('#fff7ed', 1.4);
@@ -368,7 +411,6 @@ export function Board3D({
       const cardLength = 3.8;
       const deckHeight = 0.48;
 
-      // Glowing pedestal frame under deck
       const baseGeo = new THREE.BoxGeometry(cardWidth + 0.35, 0.08, cardLength + 0.35);
       const baseMat = new THREE.MeshBasicMaterial({
         color: deckType === 'drink' ? '#f97316' : '#ec4899',
@@ -389,7 +431,6 @@ export function Board3D({
         metalness: 0.1,
       });
 
-      // Deck stack body
       const stackGeo = new THREE.BoxGeometry(cardWidth, deckHeight, cardLength);
       const stackMaterials = [sideMat, sideMat, topMat, sideMat, sideMat, sideMat];
       const stackMesh = new THREE.Mesh(stackGeo, stackMaterials);
@@ -399,7 +440,6 @@ export function Board3D({
       stackMesh.receiveShadow = true;
       scene.add(stackMesh);
 
-      // Animated top flying card that lifts & flips when drawn
       const flyGeo = new THREE.BoxGeometry(cardWidth, 0.05, cardLength);
       const flyMaterials = [sideMat, sideMat, topMat, topMat, sideMat, sideMat];
       const flyCard = new THREE.Mesh(flyGeo, flyMaterials);
@@ -411,17 +451,17 @@ export function Board3D({
       return flyCard;
     };
 
-    // Place Drinking Challenge deck (left-diagonal) and Truth or Dare deck (right-diagonal)
     drinkFlyCardRef.current = createCardDeck('drink', -3.6, -1.2, 0.35);
     truthFlyCardRef.current = createCardDeck('truth_dare', 3.6, -1.2, -0.35);
 
-    // Create 40 perimeter tiles (11x11 square)
+    // Create 40 perimeter tiles (11x11 square) oriented outward so text is always upright when viewed from outside
     const tileMeshes: THREE.Mesh[] = [];
     const tileGeo = new THREE.BoxGeometry(1.52, 0.42, 1.52);
 
     for (let i = 0; i < TOTAL_TILES; i++) {
       const tile = tiles[i];
       const { x, z } = getTilePosition(i);
+      const { rotY } = getTileSideVectors(i);
       const topTex = createTileTopTexture(tile, null);
       const sideMat = new THREE.MeshStandardMaterial({
         color: tile.color,
@@ -436,6 +476,7 @@ export function Board3D({
 
       const mesh = new THREE.Mesh(tileGeo, materials);
       mesh.position.set(x, 0, z);
+      mesh.rotation.y = rotY;
       mesh.receiveShadow = true;
       mesh.castShadow = true;
       scene.add(mesh);
@@ -460,29 +501,148 @@ export function Board3D({
     scene.add(diceMesh);
     diceMeshRef.current = diceMesh;
 
+    // Smoothed camera state vectors
+    const desiredCamPos = OVERVIEW_POS.clone();
+    const desiredCamTarget = OVERVIEW_TARGET.clone();
+    let returningToOverview = false;
+    let prevMode: CameraMode = 'overview';
+
     // Animation loop
     let animId = 0;
     const clock = new THREE.Clock();
 
     const animate = () => {
       animId = requestAnimationFrame(animate);
+      const dt = Math.min(clock.getDelta(), 0.1);
       const elapsed = clock.getElapsedTime();
+      const now = performance.now();
 
-      // Animate player cones smoothly towards their target positions
+      const activePlayer = activePlayerRef.current;
+      const activePlayerId = activePlayer?.id ?? null;
+
+      // 1. Animate player cones smoothly towards their target positions
       pawnMeshesRef.current.forEach((mesh, playerId) => {
         const target = pawnTargetsRef.current.get(playerId);
         if (target) {
-          mesh.position.x = THREE.MathUtils.lerp(mesh.position.x, target.x, 0.2);
-          mesh.position.z = THREE.MathUtils.lerp(mesh.position.z, target.z, 0.2);
+          const stepLerp = 1 - Math.exp(-14 * dt);
+          mesh.position.x = THREE.MathUtils.lerp(mesh.position.x, target.x, stepLerp);
+          mesh.position.z = THREE.MathUtils.lerp(mesh.position.z, target.z, stepLerp);
           const dist = Math.hypot(mesh.position.x - target.x, mesh.position.z - target.z);
-          const hopHeight = Math.min(dist * 0.45, 0.8);
-          const isCurrent = activePlayerIdRef.current === playerId;
-          const idleBob = isCurrent ? Math.sin(elapsed * 4.5) * 0.1 + 0.1 : 0;
+          const hopHeight = Math.min(dist * 0.48, 0.85);
+          const isCurrent = activePlayerId === playerId;
+          const idleBob = isCurrent ? Math.sin(elapsed * 4.5) * 0.08 + 0.08 : 0;
           mesh.position.y = target.y + hopHeight + idleBob;
         }
       });
 
-      // Animate 3D dice
+      // 2. Pulse landed tile for ~400ms on focus
+      const pulseStart = pulseStartRef.current;
+      const focusedId = focusedTileIdRef.current;
+      tileMeshesRef.current.forEach((mesh, idx) => {
+        if (idx === focusedId && pulseStart !== null) {
+          const pulseElapsed = now - pulseStart;
+          if (pulseElapsed <= 450) {
+            const p = pulseElapsed / 450;
+            const wave = Math.sin(p * Math.PI);
+            mesh.position.y = wave * 0.36;
+            mesh.scale.setScalar(1 + wave * 0.12);
+          } else {
+            mesh.position.y = THREE.MathUtils.lerp(mesh.position.y, 0, 0.2);
+            mesh.scale.setScalar(THREE.MathUtils.lerp(mesh.scale.x, 1, 0.2));
+          }
+        } else {
+          if (mesh.position.y !== 0) {
+            mesh.position.y = THREE.MathUtils.lerp(mesh.position.y, 0, 0.2);
+          }
+          if (mesh.scale.x !== 1) {
+            mesh.scale.setScalar(THREE.MathUtils.lerp(mesh.scale.x, 1, 0.2));
+          }
+        }
+      });
+
+      // 3. Camera tracking & zooming (followPiece, focusTile, resetCamera)
+      const mode = cameraModeRef.current;
+      if (mode !== prevMode) {
+        if (mode === 'overview') {
+          returningToOverview = true;
+        }
+        prevMode = mode;
+      }
+
+      if (mode === 'follow' && activePlayer) {
+        controls.enabled = false;
+        returningToOverview = false;
+
+        const pawnMesh = pawnMeshesRef.current.get(activePlayer.id);
+        const basePos = pawnMesh
+          ? pawnMesh.position
+          : new THREE.Vector3(
+              getTilePosition(activePlayer.pos).x,
+              0.72,
+              getTilePosition(activePlayer.pos).z
+            );
+        const { outX, outZ, fwdX, fwdZ } = getTileSideVectors(activePlayer.pos);
+
+        // Camera ~2x closer than overview, outside the board edge looking inward and slightly ahead of the pawn
+        desiredCamTarget.set(
+          basePos.x + fwdX * 2.1,
+          0.35,
+          basePos.z + fwdZ * 2.1
+        );
+        desiredCamPos.set(
+          basePos.x + outX * 7.8 - fwdX * 3.4,
+          7.6,
+          basePos.z + outZ * 7.8 - fwdZ * 3.4
+        );
+
+        const camLerp = 1 - Math.exp(-5.2 * dt);
+        camera.position.lerp(desiredCamPos, camLerp);
+        controls.target.lerp(desiredCamTarget, camLerp);
+      } else if (mode === 'focus' && focusedId !== null) {
+        controls.enabled = false;
+        returningToOverview = false;
+
+        const tileCoords = getTilePosition(focusedId);
+        const { outX, outZ } = getTileSideVectors(focusedId);
+
+        // Camera ~3x closer than overview and lower so landed tile's name & price are crystal clear
+        desiredCamTarget.set(tileCoords.x, 0.25, tileCoords.z);
+        desiredCamPos.set(
+          tileCoords.x + outX * 4.5,
+          4.6,
+          tileCoords.z + outZ * 4.5
+        );
+
+        const focusLerp = 1 - Math.exp(-6.5 * dt);
+        camera.position.lerp(desiredCamPos, focusLerp);
+        controls.target.lerp(desiredCamTarget, focusLerp);
+      } else {
+        // Overview mode
+        if (returningToOverview || isRollingRef.current) {
+          controls.enabled = false;
+          const resetLerp = 1 - Math.exp(-4.8 * dt);
+          camera.position.lerp(OVERVIEW_POS, resetLerp);
+          controls.target.lerp(OVERVIEW_TARGET, resetLerp);
+
+          if (
+            !isRollingRef.current &&
+            camera.position.distanceTo(OVERVIEW_POS) < 0.25 &&
+            controls.target.distanceTo(OVERVIEW_TARGET) < 0.15
+          ) {
+            returningToOverview = false;
+            controls.enabled = true;
+          }
+        } else {
+          controls.enabled = true;
+        }
+      }
+
+      // Guard: never allow camera below the board
+      if (camera.position.y < 2.2) {
+        camera.position.y = 2.2;
+      }
+
+      // 4. Animate 3D dice
       if (diceMeshRef.current) {
         if (isRollingRef.current) {
           diceMeshRef.current.rotation.x += 0.28;
@@ -514,8 +674,7 @@ export function Board3D({
         }
       }
 
-      // Animate 3D Card Draw from center decks
-      const now = performance.now();
+      // 5. Animate 3D Card Draw from center decks toward camera view
       const activeDeck = drawingDeckRef.current;
       const startMs = drawAnimStartRef.current;
 
@@ -528,11 +687,16 @@ export function Board3D({
       ) => {
         if (!cardMesh) return;
         if (isDrawingThis && startMs !== null) {
-          const t = Math.min((now - startMs) / 900, 1);
+          const t = Math.min((now - startMs) / 850, 1);
           const ease = 1 - Math.pow(1 - t, 3);
-          cardMesh.position.x = THREE.MathUtils.lerp(baseX, 0, ease);
-          cardMesh.position.y = THREE.MathUtils.lerp(0.63, 6.2, ease);
-          cardMesh.position.z = THREE.MathUtils.lerp(baseZ, 4.5, ease);
+          // Fly towards midpoint between board center and current camera position
+          const targetFlyX = camera.position.x * 0.35;
+          const targetFlyY = Math.max(4.8, camera.position.y * 0.42);
+          const targetFlyZ = camera.position.z * 0.35;
+
+          cardMesh.position.x = THREE.MathUtils.lerp(baseX, targetFlyX, ease);
+          cardMesh.position.y = THREE.MathUtils.lerp(0.63, targetFlyY, ease);
+          cardMesh.position.z = THREE.MathUtils.lerp(baseZ, targetFlyZ, ease);
           cardMesh.rotation.x = ease * Math.PI * 0.42;
           cardMesh.rotation.y = THREE.MathUtils.lerp(baseRotY, Math.PI * 2, ease);
           cardMesh.rotation.z = Math.sin(ease * Math.PI) * 0.2;
