@@ -2,6 +2,10 @@ import type { Tile, PartyCardTemplate, RoundStage } from '../types';
 
 export const TOTAL_TILES = 40;
 
+export const MIN_ROUNDS = 3;
+export const DEFAULT_ROUNDS = 10;
+export const MAX_ROUNDS_LIMIT = 30;
+
 export const PLAYER_COLORS = [
   { name: 'Neoonroosa', hex: '#f43f5e' },
   { name: 'Kuldne', hex: '#f59e0b' },
@@ -209,10 +213,24 @@ export const PARTY_CARDS: PartyCardTemplate[] = [
   },
 ];
 
-export function getStageForRound(round: number): RoundStage {
-  if (round <= 3) return 'early';
-  if (round <= 7) return 'mid';
+export function getStageForRound(round: number, maxRounds: number = DEFAULT_ROUNDS): RoundStage {
+  const earlyCut = Math.max(1, Math.min(maxRounds - 2, Math.round(maxRounds * 0.3)));
+  const midCut = Math.min(maxRounds - 1, Math.max(earlyCut + 1, Math.round(maxRounds * 0.7)));
+
+  if (round <= earlyCut) return 'early';
+  if (round <= midCut) return 'mid';
   return 'late';
+}
+
+export function getStageName(stage: RoundStage): string {
+  switch (stage) {
+    case 'early':
+      return 'Soojendus';
+    case 'mid':
+      return 'Vürtsikaks';
+    case 'late':
+      return 'Hullus';
+  }
 }
 
 export function drawPartyCard(
@@ -220,9 +238,10 @@ export function drawPartyCard(
   round: number,
   currentPlayerName: string,
   allPlayerNames: string[],
-  nonAlcoholic: boolean
+  nonAlcoholic: boolean,
+  maxRounds: number = DEFAULT_ROUNDS
 ): string {
-  const stage = getStageForRound(round);
+  const stage = getStageForRound(round, maxRounds);
   const pool = PARTY_CARDS.filter((c) => c.stage === stage && c.type === type);
   const candidates = pool.length > 0 ? pool : PARTY_CARDS.filter((c) => c.type === type);
   const chosen = candidates[Math.floor(Math.random() * candidates.length)];

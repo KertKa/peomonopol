@@ -16,7 +16,12 @@ import {
   INITIAL_TILES,
   PLAYER_COLORS,
   TOTAL_TILES,
+  MIN_ROUNDS,
+  DEFAULT_ROUNDS,
+  MAX_ROUNDS_LIMIT,
   drawPartyCard,
+  getStageForRound,
+  getStageName,
 } from './data/gameData';
 import type { Player, Tile } from './types';
 
@@ -29,12 +34,12 @@ type ActiveModal =
   | { type: 'game_over' }
   | null;
 
-const MAX_ROUNDS = 10;
-
 export function App() {
   // Setup state
   const [gameStarted, setGameStarted] = useState(false);
   const [nonAlcoholic, setNonAlcoholic] = useState(false);
+  const [selectedRounds, setSelectedRounds] = useState(DEFAULT_ROUNDS);
+  const [maxRounds, setMaxRounds] = useState(DEFAULT_ROUNDS);
   const [setupPlayers, setSetupPlayers] = useState([
     { name: 'Rasmus', color: PLAYER_COLORS[0].hex },
     { name: 'Laura', color: PLAYER_COLORS[1].hex },
@@ -90,6 +95,7 @@ export function App() {
     setTiles(INITIAL_TILES.map((t) => ({ ...t, owner: null })));
     setCurrentIdx(0);
     setRound(1);
+    setMaxRounds(selectedRounds);
     setModal(null);
     setDrawingDeck(null);
     setCameraMode('overview');
@@ -106,7 +112,7 @@ export function App() {
     setGameStarted(false);
   };
 
-  // Advance to next player's turn or finish after 10 rounds
+  // Advance to next player's turn or finish after selected maxRounds
   const endTurn = () => {
     setModal(null);
     setDrawingDeck(null);
@@ -117,12 +123,14 @@ export function App() {
     if (currentIdx + 1 < players.length) {
       setCurrentIdx(currentIdx + 1);
     } else {
-      if (round >= MAX_ROUNDS) {
+      if (round >= maxRounds) {
         setModal({ type: 'game_over' });
       } else {
-        setRound(round + 1);
+        const nextRound = round + 1;
+        setRound(nextRound);
         setCurrentIdx(0);
-        showToast(`Algab ${round + 1}. voor!`);
+        const stageName = getStageName(getStageForRound(nextRound, maxRounds));
+        showToast(`Algab ${nextRound}. ring (${stageName})!`);
       }
     }
   };
@@ -162,7 +170,8 @@ export function App() {
         round,
         activePlayer.name,
         updatedPlayers.map((p) => p.name),
-        nonAlcoholic
+        nonAlcoholic,
+        maxRounds
       );
       // Smoothly pull camera back toward overview so the 3D deck card flight is framed clearly
       setCameraMode('overview');
@@ -497,8 +506,36 @@ export function App() {
               </button>
             )}
 
+            {/* Ringide valik */}
+            <div className="flex items-center justify-between px-4 py-3 rounded-2xl bg-slate-800/70 border border-slate-700/70 mb-3">
+              <span className="text-sm font-medium text-slate-200">
+                Ringe:
+              </span>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  disabled={selectedRounds <= MIN_ROUNDS}
+                  onClick={() => setSelectedRounds(Math.max(MIN_ROUNDS, selectedRounds - 1))}
+                  className="w-8 h-8 rounded-xl bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:hover:bg-slate-700 disabled:cursor-not-allowed text-white font-bold text-base flex items-center justify-center transition cursor-pointer"
+                >
+                  −
+                </button>
+                <span className="font-extrabold text-amber-400 text-base w-6 text-center">
+                  {selectedRounds}
+                </span>
+                <button
+                  type="button"
+                  disabled={selectedRounds >= MAX_ROUNDS_LIMIT}
+                  onClick={() => setSelectedRounds(Math.min(MAX_ROUNDS_LIMIT, selectedRounds + 1))}
+                  className="w-8 h-8 rounded-xl bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:hover:bg-slate-700 disabled:cursor-not-allowed text-white font-bold text-base flex items-center justify-center transition cursor-pointer"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+
             {/* Alkovaba toggle */}
-            <label className="flex items-center justify-between px-4 py-3 rounded-2xl bg-slate-800/70 border border-slate-700/70 mb-6 cursor-pointer">
+            <label className="flex items-center justify-between px-4 py-3 rounded-2xl bg-slate-800/70 border border-slate-700/70 mb-4 cursor-pointer">
               <span className="text-sm font-medium text-slate-200">
                 🥤 Alkovaba režiim
               </span>
@@ -509,6 +546,10 @@ export function App() {
                 className="w-5 h-5 accent-amber-400 rounded cursor-pointer"
               />
             </label>
+
+            <p className="text-center text-slate-400 text-xs mb-4">
+              {selectedRounds} ringi järel võidab kõige rikkam mängija!
+            </p>
 
             <button
               type="button"
@@ -532,7 +573,7 @@ export function App() {
               </span>
               <span className="text-slate-600">|</span>
               <span className="text-sm font-semibold text-slate-200">
-                Voor {round} / {MAX_ROUNDS}
+                Ring {round}/{maxRounds} ({getStageName(getStageForRound(round, maxRounds))})
               </span>
             </div>
 
